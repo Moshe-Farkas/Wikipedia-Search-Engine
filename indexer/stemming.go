@@ -1,4 +1,4 @@
-package src
+package indexer
 
 import (
 	"strings"
@@ -225,15 +225,16 @@ func containsVowel(str string) bool {
 	return false
 }
 
-func isConsonant(str string, runeIndex int) bool {
+func isConsonant(str string, charIndex int) bool {
 	// A consonant is a letter other than the vowels 
 	// and other than a letter “Y” preceded by a consonant.
 	// So in “TOY” the consonants are “T” and “Y”, and in 
 	// “SYZYGY” they are “S”, “Z” and “G”. - https://vijinimallawaarachchi.com/2017/05/09/porter-stemming-algorithm/
-	if isVowel(rune(str[runeIndex])) {return false}
-	if str[runeIndex] == 'y' {
-		if runeIndex == 0 {return true}
-		return isVowel(rune(str[runeIndex - 1])) // supposed to be recursive? who knows...
+	if len(str) <= 2 {return false}
+	if isVowel(rune(str[charIndex])) {return false}
+	if str[charIndex] == 'y' {
+		if charIndex == 0 {return true}
+		return isVowel(rune(str[charIndex - 1])) // supposed to be recursive? who knows...
 	}
 	return true
 } 
@@ -273,9 +274,6 @@ func conditionO(str string) bool {
 }
 
 func conditionD(str string) bool {
-	if len(str) < 2 {
-		return false
-	}
 	return isConsonant(str, len(str) - 1) &&
 		   isConsonant(str, len(str) - 2)  
 }

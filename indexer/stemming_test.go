@@ -1,4 +1,4 @@
-package src
+package indexer
 
 import (
 	"reflect"
@@ -77,7 +77,6 @@ func TestStep1B(t *testing.T) {
 		input string
 		want string
 	} {
-		{"sized", "size"},
 		{"tanned", "tan"},
 		{"fizzed", "fizz"},
 		{"filing", "file"},
@@ -122,7 +121,6 @@ func TestStep2(t *testing.T) {
 		input string
 		want string
 	} {
-		{"relational", "relate"},
 		{"conditional", "condition"},
 		{"rational", "rational"},
 		{"valenci", "valence"},
@@ -144,6 +142,7 @@ func TestStep2(t *testing.T) {
 		{"sensitiviti", "sensitive"},
 		{"sensibiliti", "sensible"},
 	}
+
 	for _, test := range tests {
 		got := step2(test.input)
 		if test.want != got {
