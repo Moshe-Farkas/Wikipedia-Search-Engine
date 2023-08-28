@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"golang.org/x/net/html"
+	"os"
 )
 
 func LoadHtml() []string {
@@ -14,27 +15,27 @@ func LoadHtml() []string {
 	return parse(text)
 }
 
-// func writeToDisk(data []string, fileName string) {
-// 	file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE, 0755)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	defer file.Close()
-// 	for _, line := range data {
-// 		_, err := file.WriteString(line)
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-// 	}
-// }
+func writeToDisk(data []string, fileName string) {
+	file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+	for _, line := range data {
+		_, err := file.WriteString(line)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+}
 
-// func readHtmlFromFile(filepath string) string {
-// 	rawData, err := os.ReadFile(filepath)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	return string(rawData)
-// }
+func readHtmlFromFile(filepath string) string {
+	rawData, err := os.ReadFile(filepath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return string(rawData)
+}
 
 func getHtml(link string) string {
 	response, err := http.Get(link)
