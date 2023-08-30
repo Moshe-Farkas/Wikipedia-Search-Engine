@@ -24,8 +24,6 @@ func handleQuit() {
 
 func main() {
 	go handleQuit()
-	// src.OnStart()
-	// src.StartCrawlingAndIndexing()
 	var mode = flag.String("mode", QUERY_MODE, "idk")
 	flag.Parse()
 	src.EngineStart()

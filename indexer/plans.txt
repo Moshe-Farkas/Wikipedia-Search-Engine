@@ -1,5 +1,0 @@
-
-producer: take links from the link queue, gets the html, extracts the links and places them
-in the links queue. after extracting links the producer sends the html to the consumer queue.
-
-consumer: takes html from content queue, normalizes it, calcs the index and serializes it.
