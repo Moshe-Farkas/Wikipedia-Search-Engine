@@ -12,6 +12,8 @@ type wikipediaParser struct {}
 func (w wikipediaParser) parse(unparsedData string, thisUrl string) *parsedHtml {
 	tkn := html.NewTokenizer(strings.NewReader(unparsedData))
 	var ph parsedHtml
+	title, _ := strings.CutPrefix(thisUrl, BASE_URL + "/wiki/")
+	ph.text += title + " "
 	var inP bool = false
 	for  {
 		tt := tkn.Next()

@@ -17,22 +17,22 @@ func (tkns *tokenizedDoc) addToken(token string) {
 	if seen {
 		tkns.tokens[token]++
 	} else {
-		tkns.tokens[token] = 0
+		tkns.tokens[token] = 1
 	}
 	tkns.docLen++
 }
 
 func newTokenizedDoc() *tokenizedDoc {
-	return &tokenizedDoc{
+	return &tokenizedDoc {
 		map[string]int {},
 		0,
 	}
 }
 
-func tokenize(ph *parsedHtml) *tokenizedDoc {
+func tokenize(docText string) *tokenizedDoc {
 	var tkns = newTokenizedDoc()
-	re := regexp.MustCompile(`[-\s]`)
-	for _, word := range re.Split(ph.text, -1) {
+	re := regexp.MustCompile(`[-\s_]`)
+	for _, word := range re.Split(docText, -1) {
 		token, err := normalizeWord(word)
 		if err == nil {
 			tkns.addToken(token)
@@ -42,6 +42,9 @@ func tokenize(ph *parsedHtml) *tokenizedDoc {
 }
 
 func normalizeWord(input string) (string, error) {
+	if isStopWord(input) {
+		return "", errors.New("idk")
+	}
 	for _, char := range input {
 		if !unicode.IsPrint(char) {
 			return "", errors.New("idk")
@@ -54,11 +57,20 @@ func normalizeWord(input string) (string, error) {
 	if len(input) >= maxWordLength {
 		return "", errors.New("idk")
 	}
-	if len(input) < 2 {
-		return "", errors.New("idk")
-	}
-
 	return stem(input), nil
+}
+
+func isStopWord(str string) bool {
+	stopWords := []string {
+		"a", "the", "and", "going",
+		"for", "able", "by",
+	}
+	for _, sw := range stopWords {
+		if str == sw {
+			return true
+		}
+	}
+	return false
 }
 
 func expandContraction(input string) string {

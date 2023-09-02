@@ -2,16 +2,18 @@ package src
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"sync"
+	"fmt"
 )
 
 func StartCrawlingAndIndexing() {
+	// indexFromString()
 	urlsChn := make(chan string, 5)
 	responseChn := make(chan dataToParse, 100)
-	initialLink := "https://en.wikipedia.org/wiki/Laptop"
+	initialLink := "https://en.wikipedia.org/wiki/Tf%E2%80%93idf"
+
 	wg := sync.WaitGroup{}
 	urlsChn <- initialLink
 	s := &session{
@@ -27,6 +29,38 @@ func StartCrawlingAndIndexing() {
 	wg.Wait()
 	close(urlsChn)
 	close(responseChn)
+}
+
+func printPage() {
+	// should remove 
+	re, err := http.Get("https://en.wikipedia.org/wiki/PageRank")
+	checkErr(err)
+	body, err := io.ReadAll(re.Body)
+	checkErr(err)
+	re.Body.Close()
+	
+	wp := wikipediaParser {}
+	temp := wp.parse(string(body), "https://en.wikipedia.org/wiki/PageRank")
+	for _, url := range temp.urls {
+		fmt.Println(url)
+	}
+	fmt.Println("------------------------------------------------")
+	// for _, t := range strings.Split(temp.text, " ") {
+	// 	fmt.Println(t)
+	// } 	
+	// os.Exit(1)
+}
+
+func indexFromString() {
+	docs := map[string]string {
+		"doc1": "the brown cow",
+		"doc2": "so the brown bag",
+		"doc3": "and and and for",
+		"doc4": "and and better",
+	}
+	for doc, docdata := range docs {
+		addToIndex(doc, tokenize(docdata))	
+	}
 }
 
 type session struct {
@@ -45,9 +79,18 @@ type parsingStrategy interface {
 	parse(string, string) *parsedHtml
 }
 
+var tempSeenDocs = map[string] struct {}{}
+
 func produceData(s *session) {
 	for url := range s.urlsChn {
+
+		if _, seen := tempSeenDocs[url]; seen {
+			continue
+		}
+
 		response, err := http.Get(url)
+		tempSeenDocs[url] = struct{}{}
+
 		checkErr(err)
 		if response.StatusCode == 429 {
 			panic(errors.New("too fast. got a 429. deal with it"))
@@ -69,13 +112,11 @@ func consumeData(s *session) {
 		select {
 		case response := <-s.responseChn:
 			ph := s.htmlParser.parse(string(response.rawData), response.url)
-
 			bufferedUrls = append(bufferedUrls, ph.urls...) 	// parsing strategy will filtered out unwanted urls
 
-			addToIndex(response.url, tokenize(ph))
-			fmt.Printf("Consumer added %s to index\n", response.url)
+			addToIndex(response.url, tokenize(ph.text))
+			fmt.Printf("new index: %s. doc count: %d words: %d\n", response.url, corpusL, len(globalTermsDatabase))
 			corpusL++
-			fmt.Println("\t\t", len(globalTermsDatabase), "   docs: ", corpusL)
 
 		default:
 			if len(bufferedUrls) > 0 {

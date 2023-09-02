@@ -33,5 +33,7 @@ func main() {
 		src.StartHandlingQueries()
 	case INDEX_MODE:
 		// do index stuff
+		src.StartCrawlingAndIndexing()
+		src.Cleanup()
 	}
 }
