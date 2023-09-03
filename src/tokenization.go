@@ -63,7 +63,9 @@ func normalizeWord(input string) (string, error) {
 func isStopWord(str string) bool {
 	stopWords := []string {
 		"a", "the", "and", "going",
-		"for", "able", "by",
+		"for", "able", "by", "if",
+		"to", "be", "or", "not",
+		"is",
 	}
 	for _, sw := range stopWords {
 		if str == sw {

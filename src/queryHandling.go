@@ -5,16 +5,12 @@ import (
 	"math"
 	"sort"
 	"time"
+	"net/http"
 )
 
 func StartHandlingQueries() {
-	// need to create tf-idf vectors
-	initialize()
-	// printSparseVectors(tfidfVectors)
-	var q string = "inverted matrix index"
-	// fmt.Println("query")
-	// printfCompleteSparseVector(vectorizeQuery(q))
-	// printGlobalTerms()
+	initTfidfvectors()
+	var q string = "queen elizabeth"
 	fmt.Println("-------------------------------------------------------")
 	fmt.Println(q)
 	startTime := time.Now()
@@ -38,7 +34,7 @@ var (
 
 type sparseVector map[int] float64  // index: val - actual length is len(termsDatabase)
 
-func initialize() {
+func initTfidfvectors() {
 	// needs to create tf-idf vectors
 	tfidfVectors = make(map[string]sparseVector)
 	for _, termData := range globalTermsDatabase {
@@ -69,14 +65,6 @@ func rank(query string) []struct{name string; val float64} {
 
 	for doc, vec := range tfidfVectors {
 		data = append(data, struct{name string; val float64}{doc, cosineSimilarity(qv, vec)})
-
-
-		// cosineAngle := cosineSimilarity(qv, vec)
-		// // fmt.Printf("%s: %f\n", doc, cosineAngle)
-		// if cosineAngle > minDistance {
-		// 	minDistance = cosineAngle
-		// 	minDistanceName = doc
-		// }
 	}
 	sort.Slice(data, func(i, j int) bool {
 		return data[i].val > data[j].val
@@ -147,3 +135,64 @@ func vectorMagnitude(vec sparseVector) float64 {
 }
 
 
+
+// func main() {
+//         mux := http.NewServeMux()
+//         mux.HandleFunc("/", Root)
+//         mux.HandleFunc("/hello", Hello)
+//         mux.HandleFunc("/headers", headers)
+//         mux.HandleFunc("/requests", requestCount)
+//         mux.HandleFunc("/jsontest", jsonTest)
+//         err := http.ListenAndServe(":1234", mux)
+//         if errors.Is(err, http.ErrServerClosed) {
+//                 fmt.Printf("server closed\n")
+//         } else if err != nil {
+//                 fmt.Printf("could not start server: %s\n", err)
+//                 os.Exit(1)
+//         }
+// }
+
+// func jsonTest(w http.ResponseWriter, r *http.Request) {
+//         w.Header().Set("Content-Type", "application/json")
+//         fmt.Fprintln(w, `{
+//         "person": {
+//                 "name": "John Doe",
+//                 "age": 30,
+//                 "email": "john@example.com",
+//                 "address": {
+//                 "street": "123 Main St",
+//                 "city": "Anytown",
+//                 "state": "CA",
+//                 "postal_code": "12345"
+//                 },
+//                 "hobbies": ["reading", "hiking", "cooking"],
+//                 "is_student": false
+//                 }
+//         } `)
+// }
+
+// func requestCount(w http.ResponseWriter, r *http.Request) {
+//         globalRequestCount++
+//         fmt.Fprintf(w, "you are the %d request\n", globalRequestCount)
+// }
+
+// func headers(w http.ResponseWriter, r *http.Request) {
+//         for name, headers := range r.Header {
+//                 for _, h := range headers {
+//                         fmt.Fprintf(w, "%v: %v\n", name, h)
+//                 }
+//         }
+//         globalRequestCount++
+// }
+
+// func Root(w http.ResponseWriter, r *http.Request) {
+//         io.WriteString(w, "this is the root\n")
+//         globalRequestCount++
+// }
+
+// func Hello(w http.ResponseWriter, r *http.Request) {
+//         // ctx := r.Context()
+//         // fmt.Println("function handler")
+//         // defer fmt.Println("function handler ended")
+
+// }
