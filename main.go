@@ -18,13 +18,17 @@ func handleQuit() {
 	for temp != QUIT_MESSAGE {
 		fmt.Scanf("%s", &temp)
 	}
-	src.Cleanup()
+	if *mode == INDEX_MODE {
+		src.Cleanup()
+	}
 	os.Exit(0)
 }
 
+var mode *string
+
 func main() {
 	go handleQuit()
-	var mode = flag.String("mode", QUERY_MODE, "idk")
+	mode = flag.String("mode", QUERY_MODE, "idk")
 	flag.Parse()
 	src.EngineStart()
 	switch *mode {

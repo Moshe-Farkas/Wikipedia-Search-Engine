@@ -1,31 +1,52 @@
 package src
 
 import (
+	"errors"
 	"fmt"
 	"math"
-	"sort"
-	"time"
 	"net/http"
+	"os"
+	"sort"
+	// "time"
+	"encoding/json"
 )
 
 func StartHandlingQueries() {
 	initTfidfvectors()
-	var q string = "queen elizabeth"
-	fmt.Println("-------------------------------------------------------")
-	fmt.Println(q)
-	startTime := time.Now()
 
-	result := rank(q)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", queryHandle)	
+	err := http.ListenAndServe(":1234", mux)
+	if errors.Is(err, http.ErrServerClosed) {
+		fmt.Println("server closed")
+	} else {
+		fmt.Println("could not start server")
+		os.Exit(1)
+	}
+}
+
+const RESULTS_AMOUNT = 30
+
+func queryHandle(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		return
+	}
+	results := rank(query, RESULTS_AMOUNT)
 	i := 0
-	for _, item := range result {
-		if i > 10 {
+	temp := [] struct {Name string; Val float64} {}
+	for _, item := range results {
+		if i > 30 {
 			break
 		}
-		fmt.Println("\t", item.name, item.val)
+		temp = append(temp, item)
 		i++
 	}
-	fmt.Printf("took %f seconds to query\n", time.Since(startTime).Seconds())
-	fmt.Println("-------------------------------------------------------")
+	jsonData, err := json.Marshal(temp)
+	checkErr(err)
+	fmt.Fprint(w, string(jsonData))
 }
 
 var (
@@ -53,21 +74,18 @@ func initTfidfvectors() {
 	}
 }
 
-func rank(query string) []struct{name string; val float64} {
+func rank(query string, n int) []struct{Name string; Val float64} {
 	qv := vectorizeQuery(query)
-	// var minDistance = float64(0)
-	// var minDistanceName = "no match found"
-
 	var data []struct {
-		name string
-		val float64
+		Name string
+		Val float64
 	}
-
+	
 	for doc, vec := range tfidfVectors {
-		data = append(data, struct{name string; val float64}{doc, cosineSimilarity(qv, vec)})
+		data = append(data, struct{Name string; Val float64}{doc, cosineSimilarity(qv, vec)})
 	}
 	sort.Slice(data, func(i, j int) bool {
-		return data[i].val > data[j].val
+		return data[i].Val > data[j].Val
 	})	
 	return data
 }
