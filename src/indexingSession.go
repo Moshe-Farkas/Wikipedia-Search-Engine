@@ -9,26 +9,26 @@ import (
 )
 
 func StartCrawlingAndIndexing() {
-	// indexFromString()
-	urlsChn := make(chan string, 5)
-	responseChn := make(chan dataToParse, 100)
-	initialLink := "https://en.wikipedia.org/wiki/Tf%E2%80%93idf"
+	indexFromString()
+	// urlsChn := make(chan string, 5)
+	// responseChn := make(chan dataToParse, 100)
+	// initialLink := "https://en.wikipedia.org/wiki/Tf%E2%80%93idf"
 
-	wg := sync.WaitGroup{}
-	urlsChn <- initialLink
-	s := &session{
-		&wg,
-		urlsChn,
-		responseChn,
-		wikipediaParser{},
-	}
-	go produceData(s)
-	wg.Add(1)
-	go consumeData(s)
+	// wg := sync.WaitGroup{}
+	// urlsChn <- initialLink
+	// s := &session{
+	// 	&wg,
+	// 	urlsChn,
+	// 	responseChn,
+	// 	wikipediaParser{},
+	// }
+	// go produceData(s)
+	// wg.Add(1)
+	// go consumeData(s)
 
-	wg.Wait()
-	close(urlsChn)
-	close(responseChn)
+	// wg.Wait()
+	// close(urlsChn)
+	// close(responseChn)
 }
 
 func printPage() {

@@ -35,17 +35,9 @@ func queryHandle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	results := rank(query, RESULTS_AMOUNT)
-	i := 0
-	temp := [] struct {Name string; Val float64} {}
-	for _, item := range results {
-		if i > 30 {
-			break
-		}
-		temp = append(temp, item)
-		i++
-	}
-	jsonData, err := json.Marshal(temp)
+	jsonData, err := json.Marshal(results)
 	checkErr(err)
+
 	fmt.Fprint(w, string(jsonData))
 }
 
@@ -74,20 +66,26 @@ func initTfidfvectors() {
 	}
 }
 
-func rank(query string, n int) []struct{Name string; Val float64} {
+func rank(query string, n int) []string {
 	qv := vectorizeQuery(query)
 	var data []struct {
-		Name string
-		Val float64
+		name string
+		val float64
 	}
-	
 	for doc, vec := range tfidfVectors {
-		data = append(data, struct{Name string; Val float64}{doc, cosineSimilarity(qv, vec)})
+		data = append(data, struct{name string; val float64}{doc, cosineSimilarity(qv, vec)})
 	}
 	sort.Slice(data, func(i, j int) bool {
-		return data[i].Val > data[j].Val
+		return data[i].val > data[j].val
 	})	
-	return data
+	var topDocNames  = []string {}
+	for _, d := range data {
+		if d.val == float64(0) {
+			break
+		}
+		topDocNames = append(topDocNames, d.name)
+	}
+	return topDocNames
 }
 
 func printfCompleteSparseVector(v sparseVector) {

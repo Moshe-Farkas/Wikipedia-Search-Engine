@@ -13,29 +13,28 @@ import (
 
 var (
 	globalTermsDatabase terms
-	corpusLen           int
-	indexedDocs         map[string]struct {}
+	seenDocs         map[string]struct {}
 	databasePath        string = "terms-data.gz"
 )
 
 func Cleanup() {
+	calcIdfScores()
 	serializeDatabase()
 }
 
 func EngineStart() {
 	loadIndex()
-	indexedDocs = make(map[string]struct{})
 }
 
 func loadIndex() {
 	err := deserializeDatabase()
-	corpusLen = len(globalTermsDatabase)
+	loadSeenDocs()
 	checkErr(err)
 	fmt.Printf("%d terms in database\n", len(globalTermsDatabase))
 }
 
 func seenDoc(doc string) bool {
-	_, seen := indexedDocs[doc]
+	_, seen := seenDocs[doc]
 	return seen
 }
 
@@ -44,9 +43,18 @@ func seenToken(token string) bool {
 	return seen
 }
 
+func corpusLen() int {
+	return len(seenDocs)
+}
+
+func calcIdfScores() {
+	for _, tData := range globalTermsDatabase {
+		tData.Idf = idf(corpusLen(), len(tData.Docs))
+	}
+}
+
 func addToIndex(docName string, tkns *tokenizedDoc) {
-	indexedDocs[docName] = struct {}{}
-	corpusLen++
+	seenDocs[docName] = struct {}{}
 	var currentTermIndex = len(globalTermsDatabase) 
 	for token, tf := range tkns.tokens {
 		if !seenToken(token) {
@@ -59,7 +67,17 @@ func addToIndex(docName string, tkns *tokenizedDoc) {
 		}
 		tkn := globalTermsDatabase[token]
 		tkn.Docs[docName] = float64(tf) / float64(tkns.docLen)
-		tkn.Idf = idf(corpusLen, len(tkn.Docs))
+	}
+}
+
+func loadSeenDocs() {
+	seenDocs = map[string]struct{}{}
+	for _, tData := range globalTermsDatabase {
+		for doc := range tData.Docs {
+			if !seenDoc(doc) {
+				seenDocs[doc] = struct{}{}
+			}
+		}
 	}
 }
 
