@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>wiki search engine</title>
+</head>
+<body>
+    
+    <input type="text" id="searchInput" placeholder="Search...">
+    <button id="searchButton">Search</button>
+
+    <div id="searchResults">
+        <!-- Results will be displayed here -->
+    </div>
+
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const searchButton = document.getElementById('searchButton');
+        const searchResults = document.getElementById('searchResults');
+
+        const apiUrl = "http://localhost:1234/"
+        searchButton.addEventListener('click', () => {
+            const searchTerm = searchInput.value.trim();
+            if (searchTerm == "") {
+                return 
+            }
+            const requestUrl = apiUrl + "?q=" + searchTerm.replace(" ", "+")
+            fetch(requestUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+                    return response.json()
+                })
+                .then(data => {
+                    drawResults(data)
+                })
+                .catch(error => {
+                    console.error('Fetch Error:', error);
+                    searchResults.innerHTML = 'An error occurred while fetching data.';
+                });
+        });
+
+        function drawResults(results) {
+            if (searchResults.querySelector('p')) {
+                searchResults.removeChild(searchResults.querySelector('p'))
+            }
+
+            const existingList = searchResults.querySelector('ul');
+            if (existingList) {
+                searchResults.removeChild(existingList);
+            }
+            if (results.length == 0) {
+                const p = document.createElement('p')
+                p.innerHTML = "No results..."
+                searchResults.appendChild(p)
+                return 
+            }
+            const list = document.createElement('ul')
+            var index = 1 
+            results.forEach(element => {
+                const link = document.createElement("a")
+                link.target = "_blank"
+                link.href = element
+                link.innerHTML = element
+                const li = document.createElement('li')
+                li.appendChild(link)
+                list.appendChild(li)
+            }); 
+
+            searchResults.appendChild(list)
+        }
+
+    </script>
+
+</body>
+</html>
