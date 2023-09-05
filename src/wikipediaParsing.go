@@ -32,7 +32,7 @@ func (w wikipediaParser) parse(unparsedData string, thisUrl string) *parsedHtml 
 						ph.urls = append(ph.urls, attr.Val)
 					}
 				}
-			}
+			} 
 
 		case html.EndTagToken:
 			t := tkn.Token()

@@ -1,24 +1,23 @@
 package src
 
 import (
-	"bytes"
 	"compress/gzip"
-	"encoding/json"
+	"encoding/gob"
 	"fmt"
-	"io"
 	"log"
-	"os"
 	"math"
+	"os"
 )
 
 var (
 	globalTermsDatabase terms
-	seenDocs         map[string]struct {}
+	seenDocs            map[string]struct{}
 	databasePath        string = "terms-data.gz"
 )
 
-func Cleanup() {
+func FinishIndexing() {
 	calcIdfScores()
+	fmt.Println("serializing index...")
 	serializeDatabase()
 }
 
@@ -27,10 +26,11 @@ func EngineStart() {
 }
 
 func loadIndex() {
-	err := deserializeDatabase()
+	fmt.Println("loading index...")
+	deserializeDatabase()
 	loadSeenDocs()
-	checkErr(err)
-	fmt.Printf("%d terms in database\n", len(globalTermsDatabase))
+	fmt.Printf("%d terms in index\n", len(globalTermsDatabase))
+	fmt.Printf("%d docs in index\n", corpusLen())
 }
 
 func seenDoc(doc string) bool {
@@ -54,14 +54,14 @@ func calcIdfScores() {
 }
 
 func addToIndex(docName string, tkns *tokenizedDoc) {
-	seenDocs[docName] = struct {}{}
-	var currentTermIndex = len(globalTermsDatabase) 
+	seenDocs[docName] = struct{}{}
+	var currentTermIndex = len(globalTermsDatabase)
 	for token, tf := range tkns.tokens {
 		if !seenToken(token) {
-			globalTermsDatabase[token] = &termData {
+			globalTermsDatabase[token] = &termEntry{
 				currentTermIndex,
 				0,
-				map[string]float64 {docName: 0}, 
+				map[string]float64{docName: 0},
 			}
 			currentTermIndex++
 		}
@@ -81,46 +81,30 @@ func loadSeenDocs() {
 	}
 }
 
-func deserializeDatabase() error {
+func deserializeDatabase() {
 	if _, err := os.Stat(databasePath); err != nil {
 		globalTermsDatabase = make(terms)
-		// this means the database of terms is empty
-		return nil
+		return 
 	}
-	file, err := os.Open(databasePath)	
-	if err != nil {
-		return err
-	}
+	file, err := os.Open(databasePath)
+	checkErr(err)
 	zr, err := gzip.NewReader(file)
-	if err != nil {
-		return err
-	}
-	var buff bytes.Buffer
-	_, err = io.Copy(&buff, zr)
-	if err != nil {
-		return err
-	}
+	checkErr(err)
 	globalTermsDatabase = make(terms)
-	err = json.Unmarshal(buff.Bytes(), &globalTermsDatabase)
-	if err != nil {
-		return err
-	}
-	return nil
+	gd := gob.NewDecoder(zr)
+	globalTermsDatabase = make(terms)
+	gd.Decode(&globalTermsDatabase)
 }
 
 func serializeDatabase() {
-	jsonData, err := json.Marshal(globalTermsDatabase)
-	checkErr(err)
-	var buff bytes.Buffer
-	zw := gzip.NewWriter(&buff)
-	_, err = zw.Write(jsonData)
-	checkErr(err)
-	err = zw.Close()
-	checkErr(err)
 	file, err := os.Create(databasePath)
 	checkErr(err)
-	_, err = file.Write(buff.Bytes())
+	zw := gzip.NewWriter(file)	
+	ge := gob.NewEncoder(zw)
+	err = ge.Encode(globalTermsDatabase)	
 	checkErr(err)
+	zw.Close()
+	file.Close()
 }
 
 func idf(corpusLen, containingTermLen int) float64 {
@@ -130,9 +114,9 @@ func idf(corpusLen, containingTermLen int) float64 {
 	return math.Log10(float64(corpusLen) / float64(containingTermLen))
 }
 
-type terms map[string]*termData
+type terms map[string]*termEntry
 
-type termData struct {
+type termEntry struct {
 	Index int
 	Idf   float64
 	Docs  map[string]float64

@@ -1,16 +1,17 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"project/src"
-	"flag"
+	"strings"
 )
 
 const (
 	QUIT_MESSAGE = "q"
-	QUERY_MODE = "query"
-	INDEX_MODE = "index"
+	QUERY_MODE   = "query"
+	INDEX_MODE   = "index"
 )
 
 func handleQuit() {
@@ -19,7 +20,7 @@ func handleQuit() {
 		fmt.Scanf("%s", &temp)
 	}
 	if *mode == INDEX_MODE {
-		src.Cleanup()
+		src.FinishIndexing()
 	}
 	os.Exit(0)
 }
@@ -37,7 +38,9 @@ func main() {
 		src.StartHandlingQueries()
 	case INDEX_MODE:
 		// do index stuff
-		src.StartCrawlingAndIndexing()
-		src.Cleanup()
+		initialLink := os.Args[len(os.Args)-1]
+		initialLink = strings.ReplaceAll(initialLink, `'`, "")
+		src.StartCrawlingAndIndexing(initialLink)
+		src.FinishIndexing()
 	}
 }

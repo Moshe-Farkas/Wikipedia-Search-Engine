@@ -8,27 +8,25 @@ import (
 	"fmt"
 )
 
-func StartCrawlingAndIndexing() {
-	indexFromString()
-	// urlsChn := make(chan string, 5)
-	// responseChn := make(chan dataToParse, 100)
-	// initialLink := "https://en.wikipedia.org/wiki/Tf%E2%80%93idf"
+func StartCrawlingAndIndexing(initialLink string) {
+	// indexFromString()
+	urlsChn := make(chan string, 5)
+	responseChn := make(chan dataToParse, 100)
+	wg := sync.WaitGroup{}
+	urlsChn <- initialLink
+	s := &session{
+		&wg,
+		urlsChn,
+		responseChn,
+		wikipediaParser{},
+	}
+	go produceData(s)
+	wg.Add(1)
+	go consumeData(s)
 
-	// wg := sync.WaitGroup{}
-	// urlsChn <- initialLink
-	// s := &session{
-	// 	&wg,
-	// 	urlsChn,
-	// 	responseChn,
-	// 	wikipediaParser{},
-	// }
-	// go produceData(s)
-	// wg.Add(1)
-	// go consumeData(s)
-
-	// wg.Wait()
-	// close(urlsChn)
-	// close(responseChn)
+	wg.Wait()
+	close(urlsChn)
+	close(responseChn)
 }
 
 func printPage() {
@@ -53,10 +51,9 @@ func printPage() {
 
 func indexFromString() {
 	docs := map[string]string {
-		"doc1": "the brown cow",
-		"doc2": "so the brown bag",
-		"doc3": "and and and for",
-		"doc4": "and and better",
+		"doc1": "vain brown cow",
+		"doc2": "jump vain brown bag",
+		"doc3": "placeholder same way",
 	}
 	for doc, docdata := range docs {
 		addToIndex(doc, tokenize(docdata))	
@@ -79,19 +76,19 @@ type parsingStrategy interface {
 	parse(string, string) *parsedHtml
 }
 
-var tempSeenDocs = map[string] struct {}{}
 
 func produceData(s *session) {
 	for url := range s.urlsChn {
 
-		if _, seen := tempSeenDocs[url]; seen {
+		if seenDoc(url) {
 			continue
 		}
 
 		response, err := http.Get(url)
-		tempSeenDocs[url] = struct{}{}
+		if err != nil {
+			continue
+		}
 
-		checkErr(err)
 		if response.StatusCode == 429 {
 			panic(errors.New("too fast. got a 429. deal with it"))
 		}
@@ -107,16 +104,14 @@ func produceData(s *session) {
 
 func consumeData(s *session) {
 	var bufferedUrls []string
-	var corpusL = 0
 	for {
 		select {
-		case response := <-s.responseChn:
+		case response := <- s.responseChn:
 			ph := s.htmlParser.parse(string(response.rawData), response.url)
 			bufferedUrls = append(bufferedUrls, ph.urls...) 	// parsing strategy will filtered out unwanted urls
 
 			addToIndex(response.url, tokenize(ph.text))
-			fmt.Printf("new index: %s. doc count: %d words: %d\n", response.url, corpusL, len(globalTermsDatabase))
-			corpusL++
+			fmt.Printf("%s. doc count: %d words: %d\n", response.url, corpusLen(), len(globalTermsDatabase))
 
 		default:
 			if len(bufferedUrls) > 0 {
@@ -129,7 +124,6 @@ func consumeData(s *session) {
 			}
 		}
 	}
-	s.wg.Done()
 }
 
 type parsedHtml struct {

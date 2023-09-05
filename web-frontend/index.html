@@ -4,16 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>wiki search engine</title>
+    <style>
+        .center {
+            width: 50%;
+            background-color:bisque;
+            margin: auto;
+        }
+    </style>
 </head>
 <body>
-    
-    <input type="text" id="searchInput" placeholder="Search...">
-    <button id="searchButton">Search</button>
+    <div class="center">
+        <input type="text" id="searchInput" placeholder="Search...">
+        <button id="searchButton">Search</button>
 
-    <div id="searchResults">
-        <!-- Results will be displayed here -->
-    </div>
-
+        <div id="searchResults">
+            <!-- Results will be displayed here -->
+        </div>
+    </div> 
     <script>
         const searchInput = document.getElementById('searchInput');
         const searchButton = document.getElementById('searchButton');
@@ -43,6 +50,7 @@
         });
 
         function drawResults(results) {
+            searchResults.innerHTML = ''
             if (searchResults.querySelector('p')) {
                 searchResults.removeChild(searchResults.querySelector('p'))
             }
@@ -63,7 +71,7 @@
                 const link = document.createElement("a")
                 link.target = "_blank"
                 link.href = element
-                link.innerHTML = element
+                link.innerHTML = index++ + " - " + element
                 const li = document.createElement('li')
                 li.appendChild(link)
                 list.appendChild(li)
