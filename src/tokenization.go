@@ -100,7 +100,7 @@ func stem(str string) string {
 	if len(str) <= 2 {
 		return str
 	}
-	str = step5B(step5A(step4(step3(step2((step1B(step1A(str))))))))
+	str = step5B(step5A(step4(step3(step2(step1C((step1B(step1A(str)))))))))
 	return str
 }
 

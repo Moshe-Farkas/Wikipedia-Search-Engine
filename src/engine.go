@@ -15,7 +15,7 @@ var (
 	databasePath        string = "terms-data.gz"
 )
 
-func FinishIndexing() {
+func DoneIndexing() {
 	calcIdfScores()
 	fmt.Println("serializing index...")
 	serializeDatabase()
@@ -30,7 +30,7 @@ func loadIndex() {
 	deserializeDatabase()
 	loadSeenDocs()
 	fmt.Printf("%d terms in index\n", len(globalTermsDatabase))
-	fmt.Printf("%d docs in index\n", corpusLen())
+	fmt.Printf("%d docs in index\n", corpusCount())
 }
 
 func seenDoc(doc string) bool {
@@ -43,13 +43,17 @@ func seenToken(token string) bool {
 	return seen
 }
 
-func corpusLen() int {
+func corpusCount() int {
 	return len(seenDocs)
+}
+
+func termsCount() int {
+	return len(globalTermsDatabase)
 }
 
 func calcIdfScores() {
 	for _, tData := range globalTermsDatabase {
-		tData.Idf = idf(corpusLen(), len(tData.Docs))
+		tData.Idf = idf(corpusCount(), len(tData.Docs))
 	}
 }
 
@@ -84,7 +88,7 @@ func loadSeenDocs() {
 func deserializeDatabase() {
 	if _, err := os.Stat(databasePath); err != nil {
 		globalTermsDatabase = make(terms)
-		return 
+		return
 	}
 	file, err := os.Open(databasePath)
 	checkErr(err)
@@ -99,9 +103,9 @@ func deserializeDatabase() {
 func serializeDatabase() {
 	file, err := os.Create(databasePath)
 	checkErr(err)
-	zw := gzip.NewWriter(file)	
+	zw := gzip.NewWriter(file)
 	ge := gob.NewEncoder(zw)
-	err = ge.Encode(globalTermsDatabase)	
+	err = ge.Encode(globalTermsDatabase)
 	checkErr(err)
 	zw.Close()
 	file.Close()

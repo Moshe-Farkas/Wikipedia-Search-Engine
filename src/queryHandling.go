@@ -67,44 +67,27 @@ func initTfidfvectors() {
 func rank(query string, n int) []string {
 	// rank only upto n results
 	qv := vectorizeQuery(query)
-	var data []struct {
-		name string
-		val float64
+	type rankScore struct {
+		name  string
+		score float64
 	}
+
+	var ranks = make([]rankScore, n)
+
 	for doc, vec := range tfidfVectors {
-		data = append(data, struct{name string; val float64}{doc, cosineSimilarity(qv, vec)})
+		ranks = append(ranks, rankScore{doc, cosineSimilarity(qv, vec)})
 	}
-	sort.Slice(data, func(i, j int) bool {
-		return data[i].val > data[j].val
+	sort.Slice(ranks, func(i, j int) bool {
+		return ranks[i].score > ranks[j].score
 	})	
 	var topDocNames  = []string {}
-	for _, d := range data {
-		if d.val == float64(0) {
+	for _, d := range ranks {
+		if d.score == float64(0) {
 			break
 		}
 		topDocNames = append(topDocNames, d.name)
 	}
 	return topDocNames
-}
-
-func printfCompleteSparseVector(v sparseVector) {
-	for i := 0; i < len(globalTermsDatabase); i++ {
-		fmt.Printf("\t%f\n", v[i])
-	}
-}
-
-func printSparseVectors(vectors map[string]sparseVector) {
-	for doc, vec := range vectors {
-		fmt.Println(doc)
-		printfCompleteSparseVector(vec)
-		fmt.Println()
-	}
-}
-
-func printGlobalTerms() {
-	for term, tData := range globalTermsDatabase {
-		fmt.Printf("%s: index %d  idf %f   docs %v\n", term, tData.Index, tData.Idf, tData.Docs)
-	}
 }
 
 func vectorizeQuery(query string) sparseVector {

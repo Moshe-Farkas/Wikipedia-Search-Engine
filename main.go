@@ -14,18 +14,21 @@ const (
 	INDEX_MODE   = "index"
 )
 
+var (
+	mode         *string
+)
+
 func handleQuit() {
 	var temp string = ""
 	for temp != QUIT_MESSAGE {
 		fmt.Scanf("%s", &temp)
 	}
 	if *mode == INDEX_MODE {
-		src.FinishIndexing()
+		src.StopIndexing()
+	} else if *mode == QUERY_MODE {
+		os.Exit(0)
 	}
-	os.Exit(0)
 }
-
-var mode *string
 
 func main() {
 	go handleQuit()
@@ -34,13 +37,11 @@ func main() {
 	src.EngineStart()
 	switch *mode {
 	case QUERY_MODE:
-		// do query stuff
 		src.StartHandlingQueries()
 	case INDEX_MODE:
-		// do index stuff
 		initialLink := os.Args[len(os.Args)-1]
 		initialLink = strings.ReplaceAll(initialLink, `'`, "")
 		src.StartCrawlingAndIndexing(initialLink)
-		src.FinishIndexing()
+		src.DoneIndexing()
 	}
 }

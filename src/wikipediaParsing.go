@@ -55,16 +55,12 @@ func filterUrls(unfilteredUrls []string, thisUrl string) []string {
 	// in case of relative urls need to add to base of thisUrl
 	var result []string 
 	for _, u := range unfilteredUrls {
-		if seenDoc(thisUrl) {
-			continue
-		}
 		if strings.Contains(u, ":") {
 			continue
 		}
-		if strings.HasPrefix(u, BASE_URL) {
+		if strings.HasPrefix(u, "/wiki/") {
+			u = BASE_URL + u
 			result = append(result, u)
-		} else if strings.HasPrefix(u, "/wiki/") {
-			result = append(result, BASE_URL + u)
 		}
 	}
 	return result

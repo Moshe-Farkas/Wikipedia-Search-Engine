@@ -4,64 +4,52 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"sync"
 	"fmt"
+	"sync"
 )
 
+func StopIndexing() {
+	for i := 0; i < consumerCount + producerCount; i++ {
+		shouldStop <- true
+	}
+}
+
 func StartCrawlingAndIndexing(initialLink string) {
-	// indexFromString()
+	shouldStop = make(chan bool)
 	urlsChn := make(chan string, 5)
 	responseChn := make(chan dataToParse, 100)
-	wg := sync.WaitGroup{}
+	if !validInitialLink(initialLink) {
+		fmt.Println("seen first link already")
+		return
+	}
 	urlsChn <- initialLink
+	wg := sync.WaitGroup {}
 	s := &session{
 		&wg,
 		urlsChn,
 		responseChn,
 		wikipediaParser{},
 	}
-	go produceData(s)
-	wg.Add(1)
-	go consumeData(s)
+	for i := 0; i < producerCount; i++ {
+		wg.Add(1)
+		go produceData(s)
+	}
+	for i := 0; i < consumerCount; i++ {
+		wg.Add(1)
+		go consumeData(s)
+	}
 
 	wg.Wait()
-	close(urlsChn)
 	close(responseChn)
+	close(urlsChn)
 }
 
-func printPage() {
-	// should remove 
-	re, err := http.Get("https://en.wikipedia.org/wiki/PageRank")
-	checkErr(err)
-	body, err := io.ReadAll(re.Body)
-	checkErr(err)
-	re.Body.Close()
-	
-	wp := wikipediaParser {}
-	temp := wp.parse(string(body), "https://en.wikipedia.org/wiki/PageRank")
-	for _, url := range temp.urls {
-		fmt.Println(url)
-	}
-	fmt.Println("------------------------------------------------")
-	// for _, t := range strings.Split(temp.text, " ") {
-	// 	fmt.Println(t)
-	// } 	
-	// os.Exit(1)
-}
-
-func indexFromString() {
-	docs := map[string]string {
-		"doc1": "vain brown cow",
-		"doc2": "jump vain brown bag",
-		"doc3": "placeholder same way",
-	}
-	for doc, docdata := range docs {
-		addToIndex(doc, tokenize(docdata))	
-	}
+func validInitialLink(initialLink string) bool {
+	return !seenDoc(initialLink)
 }
 
 type session struct {
-	wg          *sync.WaitGroup
+	wg 			*sync.WaitGroup
 	urlsChn     chan string
 	responseChn chan dataToParse
 	htmlParser  parsingStrategy
@@ -76,42 +64,56 @@ type parsingStrategy interface {
 	parse(string, string) *parsedHtml
 }
 
+const MAX_URL_BUFFER_LENGTH = 3000
+const consumerCount = 1
+const producerCount = 4
+var shouldStop chan bool
 
 func produceData(s *session) {
-	for url := range s.urlsChn {
-
-		if seenDoc(url) {
-			continue
-		}
-
-		response, err := http.Get(url)
-		if err != nil {
-			continue
-		}
-
-		if response.StatusCode == 429 {
-			panic(errors.New("too fast. got a 429. deal with it"))
-		}
-		body, err := io.ReadAll(response.Body)
-		response.Body.Close()
-		checkErr(err)
-		s.responseChn <- dataToParse{
-			url,
-			body,
+	for {
+		select {
+		case <- shouldStop:
+			goto Finish
+		
+		case url := <- s.urlsChn: 
+			if seenDoc(url) {
+				continue
+			}	
+			response, err := http.Get(url)
+			if err != nil {
+				continue
+			}
+			if response.StatusCode == 429 {
+				panic(errors.New("too fast. got a 429. deal with it"))
+			}
+			body, err := io.ReadAll(response.Body)
+			if err != nil {
+				continue
+			}
+			response.Body.Close()
+			s.responseChn <- dataToParse {
+				url,
+				body,
+			}
 		}
 	}
+	Finish:
+	s.wg.Done()
 }
 
 func consumeData(s *session) {
 	var bufferedUrls []string
 	for {
 		select {
+		case <- shouldStop:
+			goto Finish
 		case response := <- s.responseChn:
 			ph := s.htmlParser.parse(string(response.rawData), response.url)
-			bufferedUrls = append(bufferedUrls, ph.urls...) 	// parsing strategy will filtered out unwanted urls
-
+			if len(bufferedUrls) < MAX_URL_BUFFER_LENGTH {
+				bufferedUrls = append(bufferedUrls, ph.urls...) 	// parsing strategy will filtered out unwanted urls
+			}
 			addToIndex(response.url, tokenize(ph.text))
-			fmt.Printf("%s. doc count: %d words: %d\n", response.url, corpusLen(), len(globalTermsDatabase))
+			fmt.Printf("%s. doc count: %d words: %d\n", response.url, corpusCount(), termsCount())
 
 		default:
 			if len(bufferedUrls) > 0 {
@@ -124,6 +126,8 @@ func consumeData(s *session) {
 			}
 		}
 	}
+	Finish:
+	s.wg.Done()
 }
 
 type parsedHtml struct {
