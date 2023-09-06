@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
+	"os/signal"
 	"project/src"
 	"strings"
 )
@@ -19,10 +19,9 @@ var (
 )
 
 func handleQuit() {
-	var temp string = ""
-	for temp != QUIT_MESSAGE {
-		fmt.Scanf("%s", &temp)
-	}
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	<- c
 	if *mode == INDEX_MODE {
 		src.StopIndexing()
 	} else if *mode == QUERY_MODE {
