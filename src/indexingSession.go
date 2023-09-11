@@ -15,7 +15,7 @@ func StopIndexing() {
 }
 
 func StartCrawlingAndIndexing(initialLink string) {
-	loadTermsAndDocs()
+	dbConn.loadTermsAndDocs()
 	shouldStop = make(chan bool)
 	urlsChn := make(chan string, 5)
 	responseChn := make(chan dataToParse, 100)
@@ -114,7 +114,7 @@ func consumeData(s *session) {
 				bufferedUrls = append(bufferedUrls, ph.urls...) 	// parsing strategy will filtered out unwanted urls
 			}
 			addToIndex(response.url, tokenize(ph.text))
-			fmt.Printf("%s. doc count: %d words: %d\n", response.url, corpusCount(), termsCount())
+			fmt.Printf("%s. doc count: %d words: %d\n", response.url, dbConn.corpusCount(), dbConn.termsCount())
 
 		default:
 			if len(bufferedUrls) > 0 {
