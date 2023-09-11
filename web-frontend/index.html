@@ -26,7 +26,10 @@
         const searchButton = document.getElementById('searchButton');
         const searchResults = document.getElementById('searchResults');
 
-        const apiUrl = "http://20.0.230.174:1234/"
+        // const apiUrl = "http://20.0.230.174:1234/"
+        const apiUrl = "http://localhost:1234/"
+
+
         searchButton.addEventListener('click', () => {
             const searchTerm = searchInput.value.trim();
             if (searchTerm == "") {

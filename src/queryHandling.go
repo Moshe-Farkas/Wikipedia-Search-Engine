@@ -1,19 +1,34 @@
 package src
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 	"net/http"
 	"os"
 	"sort"
-	"encoding/json"
 )
+
+func printfCompleteSparseVector(v sparseVector) {
+	for i := 0; i < termsCount(); i++ {
+		fmt.Printf("\t%f\n", v[i])
+	}
+}
+
+func printSparseVectors(vectors map[string]sparseVector) {
+	for doc, vec := range vectors {
+		fmt.Println(doc)
+		printfCompleteSparseVector(vec)
+		fmt.Println()
+	}
+}
 
 func StartHandlingQueries() {
 	initTfidfvectors()
+	fmt.Println("finished tf vectors...")
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", queryHandle)	
+	mux.HandleFunc("/", queryHandle)
 	err := http.ListenAndServe(":1234", mux)
 	if errors.Is(err, http.ErrServerClosed) {
 		fmt.Println("server closed")
@@ -40,27 +55,39 @@ func queryHandle(w http.ResponseWriter, r *http.Request) {
 }
 
 var (
-	tfidfVectors map[string]sparseVector    // document name: sparse vector of its terms tf-idf scores
+	tfidfVectors map[string]sparseVector // document name: sparse vector of its terms tf-idf scores
 )
 
-type sparseVector map[int] float64  // index: val - actual length is len(termsDatabase)
+type sparseVector map[int]float64 // index: val - actual length is len(termsDatabase)
 
 func initTfidfvectors() {
-	// needs to create tf-idf vectors
+	cp := corpusCount()
 	tfidfVectors = make(map[string]sparseVector)
-	for _, termData := range globalTermsDatabase {
+	query :=
+	`
+	select terms.termindex, terms.containingcount, termentry.* from termentry 
+	join terms 
+	on terms.termname = termentry.termname;
+	`
+	rows, err := db.Query(query)
+	checkErr(err)
+	for rows.Next() {
 
-		var termIdf = termData.Idf
-		var termIndex = termData.Index
+		// refactor to just iterating over termentries
 
-		for docName, tf := range termData.Docs {
-			_, encountered := tfidfVectors[docName]
-			if !encountered {
-				tfidfVectors[docName] = make(sparseVector)
-			}
-			docVec := tfidfVectors[docName]
-			docVec[termIndex] = tf * termIdf
+		var termIndex uint32
+		var containingcount int
+		var termName string
+		var docName string
+		var tfScore float64
+		err := rows.Scan(&termIndex, &containingcount, &termName, &docName, &tfScore)
+		checkErr(err)
+		_, encountered := tfidfVectors[docName]
+		if !encountered {
+			tfidfVectors[docName] = make(sparseVector)
 		}
+		docVec := tfidfVectors[docName]
+		docVec[int(termIndex)] = tfScore * idf(cp, containingcount)
 	}
 }
 
@@ -79,8 +106,8 @@ func rank(query string, n int) []string {
 	}
 	sort.Slice(ranks, func(i, j int) bool {
 		return ranks[i].score > ranks[j].score
-	})	
-	var topDocNames  = []string {}
+	})
+	var topDocNames = []string{}
 	for _, d := range ranks {
 		if d.score == float64(0) {
 			break
@@ -91,17 +118,39 @@ func rank(query string, n int) []string {
 }
 
 func vectorizeQuery(query string) sparseVector {
-	// not calcing the query's tf now
-	var qv = make(sparseVector)
-	// var queryTokens = tokenize(query).tokens
-	var queryTkns = tokenize(query)
-	
-	for token, tf := range queryTkns.tokens {
-		_, encounteredTerm := globalTermsDatabase[token]
-		if encounteredTerm {
-			var token = globalTermsDatabase[token]
-			qv[token.Index] = token.Idf * (float64(tf) / float64(queryTkns.docLen))
+	termEntry := func(term string) (int, int, error) {
+		query :=
+		`
+		select terms.termindex, terms.containingcount from termentry
+		join terms on terms.termname = termentry.termname
+		where terms.termname=$1
+		limit 1
+		`
+		row := db.QueryRow(query, term)
+		var termIndex, containingcount int
+		err := row.Scan(&termIndex, &containingcount)
+		if err != nil {
+			return 0, 0, err
 		}
+		return termIndex, containingcount, nil
+	}
+
+	var qv = make(sparseVector)
+	var queryTkns = tokenize(query)
+	var cp = corpusCount()
+	for token, tf := range queryTkns.tokens {
+		termIndex, containingCount, err := termEntry(token)
+		if err == nil {
+			// aka seen term
+			idfScore := idf(cp, containingCount)
+			qv[int(termIndex)] = idfScore * float64(tf) / float64(queryTkns.docLen)
+		}
+
+		// if seenTerm(token) {
+		// 	termIndex := indexForTerm(token)
+		// 	tokenIdfScore := idf(cp, termDocsCount(token))
+		// 	qv[int(termIndex)] = tokenIdfScore * (float64(tf) / float64(queryTkns.docLen))
+		// }
 	}
 	return qv
 }
@@ -132,4 +181,11 @@ func vectorMagnitude(vec sparseVector) float64 {
 		entriesSquared += val * val
 	}
 	return math.Sqrt(entriesSquared)
+}
+
+func idf(corpusLen, containingTermLen int) float64 {
+	if containingTermLen == 0 {
+		return 0
+	}
+	return math.Log10(float64(corpusLen) / float64(containingTermLen)) 
 }

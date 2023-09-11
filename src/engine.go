@@ -1,129 +1,276 @@
 package src
 
 import (
-	"compress/gzip"
-	"encoding/gob"
+	"database/sql"
 	"fmt"
 	"log"
-	"math"
 	"os"
+	"strings"
+	_ "github.com/lib/pq"
 )
 
 var (
-	globalTermsDatabase terms
-	seenDocs            map[string]struct{}
-	databasePath        string = "terms-data.gz"
+	db *sql.DB
 )
 
-func DoneIndexing() {
-	calcIdfScores()
-	fmt.Println("serializing index...")
-	serializeDatabase()
+type termEntryData struct {
+	docs map[string]float64 	// docname: tfScore
 }
 
-func EngineStart() {
-	loadIndex()
+func CloseDB() {
+	// calcIdfScores()
+	// fmt.Println("serializing index...")
+	// serializeDatabase()
+	db.Close()
 }
 
-func loadIndex() {
-	fmt.Println("loading index...")
-	deserializeDatabase()
-	loadSeenDocs()
-	fmt.Printf("%d terms in index\n", len(globalTermsDatabase))
-	fmt.Printf("%d docs in index\n", corpusCount())
+func StartDB() {
+	// loadIndex()
+	username := os.Getenv("DB_USERNAME")
+	password := os.Getenv("DB_PASS")
+	dbName := os.Getenv("DB_NAME")
+	connStr := fmt.Sprintf("postgres://%s:%s@localhost/%s?sslmode=disable", username, password, dbName)
+	var err error
+	db, err = sql.Open("postgres", connStr)
+
+	checkErr(err)
+
+	if err = db.Ping(); err != nil {
+		panic(err)
+	}
+	fmt.Println("The database is connected")
+}
+
+func populateFromStrings(docs map[string]string) {
+	termsInsertStr :=
+	`
+	insert into terms(termname)
+	values ($1)
+	`
+	insertTerm, err := db.Prepare(termsInsertStr)
+	checkErr(err)
+	defer insertTerm.Close()
+
+	docInsertStr :=
+	`
+	insert into docs(docname)
+	values ($1)
+	`
+	insertDoc, err := db.Prepare(docInsertStr)
+	checkErr(err)
+	defer insertDoc.Close()
+
+	termEntryStr :=
+	`
+	insert into termentry(termname, docname, tfscore)
+	values ($1, $2, $3)
+	`
+	insertTermEntry, err := db.Prepare(termEntryStr)
+	checkErr(err)
+	defer insertTermEntry.Close()
+
+	for docName, docData := range docs {
+		tokens := tempTokenize(docData)
+		addToIndex(docName, tokens)
+	}
+}
+
+func tempTokenize(doc string) *tokenizedDoc {
+	result := newTokenizedDoc()
+	for _, term := range strings.Split(doc, " ") {
+		result.addToken(term)
+	}
+	return result
+}
+
+func resetDB() {
+	query := 
+	`
+	delete from termentry;
+	delete from terms;
+	alter sequence terms_termindex_seq restart with 1;
+	delete from docs;
+	`
+	_, err := db.Exec(query)
+	checkErr(err)
 }
 
 func seenDoc(doc string) bool {
-	_, seen := seenDocs[doc]
-	return seen
+	query :=
+		`
+	select * from docs
+	where docname=$1
+	`
+	row := db.QueryRow(query, doc)
+	return row.Scan() != sql.ErrNoRows
 }
 
-func seenToken(token string) bool {
-	_, seen := globalTermsDatabase[token]
-	return seen
+func seenTerm(term string) bool {
+	queryStmnt :=
+		`
+	select termname from terms
+	where termname = $1	
+	`
+	row := db.QueryRow(queryStmnt, term)
+	return row.Scan() != sql.ErrNoRows
 }
 
 func corpusCount() int {
-	return len(seenDocs)
+	queryStmnt :=
+		`
+	select count(*) from docs	
+	`
+	row := db.QueryRow(queryStmnt)
+	var len int
+	row.Scan(&len)
+	return len
 }
 
 func termsCount() int {
-	return len(globalTermsDatabase)
+	queryStmnt :=
+		`
+	select count(*) from terms
+	`
+	row := db.QueryRow(queryStmnt)
+	var count int
+	row.Scan(&count)
+	return count
 }
 
-func calcIdfScores() {
-	for _, tData := range globalTermsDatabase {
-		tData.Idf = idf(corpusCount(), len(tData.Docs))
-	}
+func termDocsCount(term string) int {
+	// returns the number of docs containing term
+	query :=
+		`
+	select count(*) from termentry
+	where termname=$1
+	`
+	row := db.QueryRow(query, term)
+	var count int
+	row.Scan(&count)
+	return count
+}
+
+func addDoc(doc string) {
+	insertQuery :=
+	`
+	insert into docs(docname)
+	values ($1)
+	`
+	_, err := db.Exec(insertQuery, doc)
+	checkErr(err)
+}
+
+func addTerm(term string) {
+	insertQuery :=
+	`
+	insert into terms(termname, containingcount)
+	values ($1, 1)
+	`
+	_, err := db.Exec(insertQuery, term)
+	checkErr(err)
+}
+
+func addTermEntry(term string, doc string, tfScore float64) {
+	insertQuery :=
+	`
+	insert into termentry(termname, docname, tfscore)
+	values ($1, $2, $3)
+	`
+	_, err := db.Exec(insertQuery, term, doc, tfScore)
+	checkErr(err)
+}
+
+func updateTermContainingCount(term string) {
+	query :=
+	`
+	update terms
+	set containingcount = containingcount + 1
+	where termname=$1
+	`
+	_, err := db.Exec(query, term)
+	checkErr(err)
 }
 
 func addToIndex(docName string, tkns *tokenizedDoc) {
-	seenDocs[docName] = struct{}{}
-	var currentTermIndex = len(globalTermsDatabase)
+	// remove
+	if seenDoc(docName) {
+		return 
+	}
+
+	if len(docName) >= 100 {
+		return 
+	}
+
+	addDoc(docName)
 	for token, tf := range tkns.tokens {
-		if !seenToken(token) {
-			globalTermsDatabase[token] = &termEntry{
-				currentTermIndex,
-				0,
-				map[string]float64{docName: 0},
-			}
-			currentTermIndex++
+		if !seenTerm(token) {
+			addTerm(token)
+		} else {
+			updateTermContainingCount(token)
 		}
-		tkn := globalTermsDatabase[token]
-		tkn.Docs[docName] = float64(tf) / float64(tkns.docLen)
+		tfScore := float64(tf) / float64(tkns.docLen)
+		addTermEntry(token, docName, tfScore)
 	}
 }
 
-func loadSeenDocs() {
-	seenDocs = map[string]struct{}{}
-	for _, tData := range globalTermsDatabase {
-		for doc := range tData.Docs {
-			if !seenDoc(doc) {
-				seenDocs[doc] = struct{}{}
-			}
-		}
-	}
+func tfScoreFor(term string, doc string) float64 {
+	query :=
+		`
+	select tfscore from termentry
+	where termname=$1 and docname=$2
+	`
+	row := db.QueryRow(query, term, doc)
+	var tfScore float64
+	row.Scan(&tfScore)
+	return tfScore
 }
 
-func deserializeDatabase() {
-	if _, err := os.Stat(databasePath); err != nil {
-		globalTermsDatabase = make(terms)
-		return
-	}
-	file, err := os.Open(databasePath)
+func indexForTerm(term string) uint32 {
+	query := 
+	`
+	select termindex from terms
+	where termname=$1
+	`
+	row := db.QueryRow(query, term)
+	var index uint32
+	err := row.Scan(&index)
 	checkErr(err)
-	zr, err := gzip.NewReader(file)
-	checkErr(err)
-	globalTermsDatabase = make(terms)
-	gd := gob.NewDecoder(zr)
-	globalTermsDatabase = make(terms)
-	gd.Decode(&globalTermsDatabase)
+	return index
 }
 
-func serializeDatabase() {
-	file, err := os.Create(databasePath)
-	checkErr(err)
-	zw := gzip.NewWriter(file)
-	ge := gob.NewEncoder(zw)
-	err = ge.Encode(globalTermsDatabase)
-	checkErr(err)
-	zw.Close()
-	file.Close()
+func (r *rowsIterator) nextItem() string {
+	var item string
+	r.rows.Scan(&item)
+	return item
 }
 
-func idf(corpusLen, containingTermLen int) float64 {
-	if containingTermLen == 0 {
-		return 0
-	}
-	return math.Log10(float64(corpusLen) / float64(containingTermLen))
+func (r *rowsIterator) hasNext() bool {
+	return r.rows.Next()
 }
 
-type terms map[string]*termEntry
+type rowsIterator struct {
+	rows *sql.Rows
+}
 
-type termEntry struct {
-	Index int
-	Idf   float64
-	Docs  map[string]float64
+func newTermsIter() *rowsIterator {
+	query :=
+		`
+	select termname from terms
+	`
+	rows, err := db.Query(query)
+	checkErr(err)
+	return &rowsIterator{rows}
+}
+
+func newTermDocsIter(term string) *rowsIterator {
+	query :=
+		`
+	select docname from termentry
+	where termname=$1
+	`
+	rows, err := db.Query(query, term)
+	checkErr(err)
+	return &rowsIterator{rows}
 }
 
 func checkErr(err error) {

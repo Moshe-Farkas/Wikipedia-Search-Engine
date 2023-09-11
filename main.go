@@ -9,7 +9,6 @@ import (
 )
 
 const (
-	QUIT_MESSAGE = "q"
 	QUERY_MODE   = "query"
 	INDEX_MODE   = "index"
 )
@@ -25,6 +24,7 @@ func handleQuit() {
 	if *mode == INDEX_MODE {
 		src.StopIndexing()
 	} else if *mode == QUERY_MODE {
+		src.CloseDB()
 		os.Exit(0)
 	}
 }
@@ -33,7 +33,7 @@ func main() {
 	go handleQuit()
 	mode = flag.String("mode", QUERY_MODE, "idk")
 	flag.Parse()
-	src.EngineStart()
+	src.StartDB()
 	switch *mode {
 	case QUERY_MODE:
 		src.StartHandlingQueries()
@@ -41,6 +41,6 @@ func main() {
 		initialLink := os.Args[len(os.Args)-1]
 		initialLink = strings.ReplaceAll(initialLink, `'`, "")
 		src.StartCrawlingAndIndexing(initialLink)
-		src.DoneIndexing()
+		src.CloseDB()
 	}
 }
