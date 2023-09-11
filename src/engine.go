@@ -19,9 +19,26 @@ func CloseDB() {
 	db.Close()
 }
 
-func StartDB() {
-	// loadIndex()
+func loadTermsAndDocs() {
+	// only needed when indexing 
+	rows, err := db.Query("select termname from terms")
+	checkErr(err)
+	seenTerms = make(map[string]struct{})
+	for rows.Next() {
+			var termName string
+			rows.Scan(&termName)
+			seenTerms[termName] = struct{}{}
+	}
+	rows, err = db.Query("select docname from docs")
+	seenDocs = make(map[string]struct{})
+	for rows.Next() {
+			var doc string
+			rows.Scan(&doc)
+			seenDocs[doc] = struct{}{}
+	}
+}
 
+func StartDB() {
 	username := os.Getenv("DB_USERNAME")
 	password := os.Getenv("DB_PASS")
 	dbName := os.Getenv("DB_NAME")
@@ -93,23 +110,13 @@ func resetDB() {
 }
 
 func seenDoc(doc string) bool {
-	query :=
-		`
-	select * from docs
-	where docname=$1
-	`
-	row := db.QueryRow(query, doc)
-	return row.Scan() != sql.ErrNoRows
+	_, seen := seenDocs[doc]
+	return seen
 }
 
 func seenTerm(term string) bool {
-	queryStmnt :=
-		`
-	select termname from terms
-	where termname = $1	
-	`
-	row := db.QueryRow(queryStmnt, term)
-	return row.Scan() != sql.ErrNoRows
+	_, seen := seenTerms[term]
+	return seen
 }
 
 func corpusCount() int {
@@ -148,6 +155,7 @@ func termDocsCount(term string) int {
 }
 
 func addDoc(doc string) {
+	seenDocs[doc] = struct{}{}
 	insertQuery :=
 	`
 	insert into docs(docname)
@@ -158,6 +166,7 @@ func addDoc(doc string) {
 }
 
 func addTerm(term string) {
+	seenTerms[term] = struct{}{}
 	insertQuery :=
 	`
 	insert into terms(termname, containingcount)

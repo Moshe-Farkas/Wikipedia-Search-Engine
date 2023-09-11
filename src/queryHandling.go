@@ -145,12 +145,6 @@ func vectorizeQuery(query string) sparseVector {
 			idfScore := idf(cp, containingCount)
 			qv[int(termIndex)] = idfScore * float64(tf) / float64(queryTkns.docLen)
 		}
-
-		// if seenTerm(token) {
-		// 	termIndex := indexForTerm(token)
-		// 	tokenIdfScore := idf(cp, termDocsCount(token))
-		// 	qv[int(termIndex)] = tokenIdfScore * (float64(tf) / float64(queryTkns.docLen))
-		// }
 	}
 	return qv
 }

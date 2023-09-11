@@ -15,6 +15,7 @@ func StopIndexing() {
 }
 
 func StartCrawlingAndIndexing(initialLink string) {
+	loadTermsAndDocs()
 	shouldStop = make(chan bool)
 	urlsChn := make(chan string, 5)
 	responseChn := make(chan dataToParse, 100)
