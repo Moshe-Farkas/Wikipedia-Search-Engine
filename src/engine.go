@@ -11,21 +11,17 @@ import (
 
 var (
 	db *sql.DB
+	seenTerms map[string]struct {}
+	seenDocs map[string]struct {}
 )
 
-type termEntryData struct {
-	docs map[string]float64 	// docname: tfScore
-}
-
 func CloseDB() {
-	// calcIdfScores()
-	// fmt.Println("serializing index...")
-	// serializeDatabase()
 	db.Close()
 }
 
 func StartDB() {
 	// loadIndex()
+
 	username := os.Getenv("DB_USERNAME")
 	password := os.Getenv("DB_PASS")
 	dbName := os.Getenv("DB_NAME")
@@ -39,6 +35,7 @@ func StartDB() {
 		panic(err)
 	}
 	fmt.Println("The database is connected")
+	fmt.Println("num of docs:", corpusCount())
 }
 
 func populateFromStrings(docs map[string]string) {
@@ -192,7 +189,6 @@ func updateTermContainingCount(term string) {
 }
 
 func addToIndex(docName string, tkns *tokenizedDoc) {
-	// remove
 	if seenDoc(docName) {
 		return 
 	}
@@ -200,7 +196,6 @@ func addToIndex(docName string, tkns *tokenizedDoc) {
 	if len(docName) >= 100 {
 		return 
 	}
-
 	addDoc(docName)
 	for token, tf := range tkns.tokens {
 		if !seenTerm(token) {
@@ -211,66 +206,6 @@ func addToIndex(docName string, tkns *tokenizedDoc) {
 		tfScore := float64(tf) / float64(tkns.docLen)
 		addTermEntry(token, docName, tfScore)
 	}
-}
-
-func tfScoreFor(term string, doc string) float64 {
-	query :=
-		`
-	select tfscore from termentry
-	where termname=$1 and docname=$2
-	`
-	row := db.QueryRow(query, term, doc)
-	var tfScore float64
-	row.Scan(&tfScore)
-	return tfScore
-}
-
-func indexForTerm(term string) uint32 {
-	query := 
-	`
-	select termindex from terms
-	where termname=$1
-	`
-	row := db.QueryRow(query, term)
-	var index uint32
-	err := row.Scan(&index)
-	checkErr(err)
-	return index
-}
-
-func (r *rowsIterator) nextItem() string {
-	var item string
-	r.rows.Scan(&item)
-	return item
-}
-
-func (r *rowsIterator) hasNext() bool {
-	return r.rows.Next()
-}
-
-type rowsIterator struct {
-	rows *sql.Rows
-}
-
-func newTermsIter() *rowsIterator {
-	query :=
-		`
-	select termname from terms
-	`
-	rows, err := db.Query(query)
-	checkErr(err)
-	return &rowsIterator{rows}
-}
-
-func newTermDocsIter(term string) *rowsIterator {
-	query :=
-		`
-	select docname from termentry
-	where termname=$1
-	`
-	rows, err := db.Query(query, term)
-	checkErr(err)
-	return &rowsIterator{rows}
 }
 
 func checkErr(err error) {
