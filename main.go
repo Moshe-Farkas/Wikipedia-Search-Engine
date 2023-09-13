@@ -22,7 +22,7 @@ func handleQuit() {
 	signal.Notify(c, os.Interrupt)
 	<- c
 	if *mode == INDEX_MODE {
-		src.StopIndexing()
+		src.StopIndexingSession()
 	} else if *mode == QUERY_MODE {
 		src.CloseDB()
 		os.Exit(0)
@@ -40,7 +40,7 @@ func main() {
 	case INDEX_MODE:
 		initialLink := os.Args[len(os.Args)-1]
 		initialLink = strings.ReplaceAll(initialLink, `'`, "")
-		src.StartCrawlingAndIndexing(initialLink)
+		src.StartIndexingSession(initialLink)
 		src.CloseDB()
 	}
 }

@@ -51,7 +51,6 @@ func (w wikipediaParser) parse(unparsedData string, thisUrl string) *parsedHtml 
 }
 
 func filterUrls(unfilteredUrls []string, thisUrl string) []string {
-	// need to check if url was already indexed
 	// in case of relative urls need to add to base of thisUrl
 	var result []string 
 	for _, u := range unfilteredUrls {

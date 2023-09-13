@@ -8,45 +8,38 @@ import (
 	"sync"
 )
 
-func StopIndexing() {
+func stopCrawling() {
 	for i := 0; i < consumerCount+producerCount; i++ {
-		shouldStop <- true
+		quitChn <- true
 	}
 }
 
-func StartCrawlingAndIndexing(initialLink string) {
-	dbConn.loadTermsAndDocs()
-	shouldStop = make(chan bool)
+func startCrawlingAndIndexing(wg *sync.WaitGroup, initialLink string) {
+	quitChn = make(chan bool)
 	urlsChn := make(chan string, 5)
 	responseChn := make(chan dataToParse, 100)
-	if !validInitialLink(initialLink) {
-		fmt.Println("seen first link already")
-		return
-	}
 	urlsChn <- initialLink
-	wg := sync.WaitGroup{}
+	internalWg := sync.WaitGroup{}
 	s := &session{
-		&wg,
+		&internalWg,
 		urlsChn,
 		responseChn,
 		wikipediaParser{},
 	}
 	for i := 0; i < producerCount; i++ {
-		wg.Add(1)
+		internalWg.Add(1)
 		go produceData(s)
 	}
 	for i := 0; i < consumerCount; i++ {
-		wg.Add(1)
+		internalWg.Add(1)
 		go consumeData(s)
 	}
 
-	wg.Wait()
+	internalWg.Wait()
 	close(responseChn)
 	close(urlsChn)
-}
-
-func validInitialLink(initialLink string) bool {
-	return !seenDoc(initialLink)
+	fmt.Println("finshed by crawling")
+	wg.Done()
 }
 
 type session struct {
@@ -69,12 +62,12 @@ const MAX_URL_BUFFER_LENGTH = 3000
 const consumerCount = 1
 const producerCount = 4
 
-var shouldStop chan bool
+var quitChn chan bool
 
 func produceData(s *session) {
 	for {
 		select {
-		case <-shouldStop:
+		case <- quitChn:
 			goto Finish
 
 		case url := <-s.urlsChn:
@@ -107,7 +100,7 @@ func consumeData(s *session) {
 	var bufferedUrls []string
 	for {
 		select {
-		case <-shouldStop:
+		case <-quitChn:
 			goto Finish
 		case response := <-s.responseChn:
 			ph := s.htmlParser.parse(string(response.rawData), response.url)
@@ -115,7 +108,7 @@ func consumeData(s *session) {
 				bufferedUrls = append(bufferedUrls, ph.urls...) // parsing strategy will filtered out unwanted urls
 			}
 			addToIndex(response.url, tokenize(ph.text))
-			fmt.Printf("%s. doc count: %d words: %d\n", response.url, dbConn.corpusLength(), dbConn.termsCount())
+			// fmt.Printf("%s. doc count: %d words: %d\n", response.url, dbConn.corpusLength(), dbConn.termsCount())
 
 		default:
 			if len(bufferedUrls) > 0 {

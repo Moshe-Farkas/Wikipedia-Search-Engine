@@ -13,18 +13,12 @@ type bufferedDocEntry struct {
 	tokens  *tokenizedDoc
 }
 
-const maxBufferedDocEntries = 100
-
 type databaseConn struct {
 	db *sql.DB
-
 	seenTermsInDB map[string]struct{}
 	seenDocsInDB  map[string]struct{}
-
 	newSeenTerms map[string]struct{} // buffering new seen terms. will be copied into seenTermsInDB
 	newSeenDocs  map[string]struct{} // buffering new seen docs. will be copied into seenDocsInDB
-
-	bufferedDocsEntries []bufferedDocEntry
 }
 
 func initDbConn() *databaseConn {
@@ -56,7 +50,7 @@ func (db *databaseConn) Close() {
 }
 
 func (db *databaseConn) corpusLength() int {
-	if l := len(db.bufferedDocsEntries) + len(db.newSeenDocs); l > 0 {
+	if l := len(db.seenDocsInDB) + len(db.newSeenDocs); l > 0 {
 		// hack to speed up corupusLength query that works only when in indexing mode.
 		return l
 	} 
@@ -119,21 +113,8 @@ func (db *databaseConn) seenTerm(term string) bool {
 	return seenThisSession
 }
 
-func (db *databaseConn) bufferNewDoc(docName string, tokens *tokenizedDoc) {
-	be := bufferedDocEntry{
-		docName,
-		tokens,
-	}
-	db.bufferedDocsEntries = append(db.bufferedDocsEntries, be)
-
-	// should write?
-	if len(db.bufferedDocsEntries) >= maxBufferedDocEntries {
-		fmt.Println("writing to db")
-		db.writeBufferedDocs()
-	}
-}
-
-func (db *databaseConn) writeBufferedDocs() {
+func (db *databaseConn) writeBufferedDocs(bd bufferedDocs) {
+	fmt.Println("writing buffered docs to db...")
 	tx, err := db.db.Begin()
 	checkErr(err)
 
@@ -173,7 +154,8 @@ func (db *databaseConn) writeBufferedDocs() {
 			panic(err)
 		}
 	}
-	for _, be := range db.bufferedDocsEntries {
+
+	for _, be := range bd {
 		if db.seenDoc(be.docName) {
 			continue
 		}
@@ -199,7 +181,7 @@ func (db *databaseConn) writeBufferedDocs() {
 	}
 	err = tx.Commit()
 	checkErr(err)
-	db.bufferedDocsEntries = make([]bufferedDocEntry, 0)
+	fmt.Printf("finshed writing buffer to db. %d docs indexed\n", db.corpusLength())
 }
 
 func (db *databaseConn) termEntryRows() *sql.Rows {
