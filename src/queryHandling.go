@@ -61,34 +61,24 @@ var (
 type sparseVector map[int]float64 // index: val - actual length is len(termsDatabase)
 
 func initTfidfvectors() {
-	// cp := corpusCount()
-	// tfidfVectors = make(map[string]sparseVector)
-	// query :=
-	// `
-	// select terms.termindex, terms.containingcount, termentry.* from termentry 
-	// join terms 
-	// on terms.termname = termentry.termname;
-	// `
-	// rows, err := db.Query(query)
-	// checkErr(err)
-	// for rows.Next() {
-
-	// 	// refactor to just iterating over termentries
-
-	// 	var termIndex uint32
-	// 	var containingcount int
-	// 	var termName string
-	// 	var docName string
-	// 	var tfScore float64
-	// 	err := rows.Scan(&termIndex, &containingcount, &termName, &docName, &tfScore)
-	// 	checkErr(err)
-	// 	_, encountered := tfidfVectors[docName]
-	// 	if !encountered {
-	// 		tfidfVectors[docName] = make(sparseVector)
-	// 	}
-	// 	docVec := tfidfVectors[docName]
-	// 	docVec[int(termIndex)] = tfScore * idf(cp, containingcount)
-	// }
+	cp := dbConn.corpusLength()
+	tfidfVectors = make(map[string]sparseVector)
+	rows := dbConn.termEntryRows()
+	for rows.Next() {
+		var termIndex uint32
+		var containingcount int
+		var termName string
+		var docName string
+		var tfScore float64
+		err := rows.Scan(&termIndex, &containingcount, &termName, &docName, &tfScore)
+		checkErr(err)
+		_, encountered := tfidfVectors[docName]
+		if !encountered {
+			tfidfVectors[docName] = make(sparseVector)
+		}
+		docVec := tfidfVectors[docName]
+		docVec[int(termIndex)] = tfScore * idf(cp, containingcount)
+	}
 }
 
 func rank(query string, n int) []string {
@@ -118,36 +108,18 @@ func rank(query string, n int) []string {
 }
 
 func vectorizeQuery(query string) sparseVector {
-	// termEntry := func(term string) (int, int, error) {
-	// 	query :=
-	// 	`
-	// 	select terms.termindex, terms.containingcount from termentry
-	// 	join terms on terms.termname = termentry.termname
-	// 	where terms.termname=$1
-	// 	limit 1
-	// 	`
-	// 	row := db.QueryRow(query, term)
-	// 	var termIndex, containingcount int
-	// 	err := row.Scan(&termIndex, &containingcount)
-	// 	if err != nil {
-	// 		return 0, 0, err
-	// 	}
-	// 	return termIndex, containingcount, nil
-	// }
-
-	// var qv = make(sparseVector)
-	// var queryTkns = tokenize(query)
-	// var cp = corpusCount()
-	// for token, tf := range queryTkns.tokens {
-	// 	termIndex, containingCount, err := termEntry(token)
-	// 	if err == nil {
-	// 		// aka seen term
-	// 		idfScore := idf(cp, containingCount)
-	// 		qv[int(termIndex)] = idfScore * float64(tf) / float64(queryTkns.docLen)
-	// 	}
-	// }
-	// return qv
-	return nil
+	var qv = make(sparseVector)
+	var queryTkns = tokenize(query)
+	var cp = dbConn.corpusLength()
+	for token, tf := range queryTkns.tokens {
+		termIndex, containingCount, err := dbConn.termInfo(token)
+		if err == nil {
+			// aka seen term
+			idfScore := idf(cp, containingCount)
+			qv[int(termIndex)] = idfScore * float64(tf) / float64(queryTkns.docLen)
+		}
+	}
+	return qv
 }
 
 func cosineSimilarity(a, b sparseVector) float64 {

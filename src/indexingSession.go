@@ -2,14 +2,14 @@ package src
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
-	"fmt"
 	"sync"
 )
 
 func StopIndexing() {
-	for i := 0; i < consumerCount + producerCount; i++ {
+	for i := 0; i < consumerCount+producerCount; i++ {
 		shouldStop <- true
 	}
 }
@@ -24,7 +24,7 @@ func StartCrawlingAndIndexing(initialLink string) {
 		return
 	}
 	urlsChn <- initialLink
-	wg := sync.WaitGroup {}
+	wg := sync.WaitGroup{}
 	s := &session{
 		&wg,
 		urlsChn,
@@ -50,7 +50,7 @@ func validInitialLink(initialLink string) bool {
 }
 
 type session struct {
-	wg 			*sync.WaitGroup
+	wg          *sync.WaitGroup
 	urlsChn     chan string
 	responseChn chan dataToParse
 	htmlParser  parsingStrategy
@@ -68,18 +68,19 @@ type parsingStrategy interface {
 const MAX_URL_BUFFER_LENGTH = 3000
 const consumerCount = 1
 const producerCount = 4
+
 var shouldStop chan bool
 
 func produceData(s *session) {
 	for {
 		select {
-		case <- shouldStop:
+		case <-shouldStop:
 			goto Finish
-		
-		case url := <- s.urlsChn: 
+
+		case url := <-s.urlsChn:
 			if seenDoc(url) {
 				continue
-			}	
+			}
 			response, err := http.Get(url)
 			if err != nil {
 				continue
@@ -92,13 +93,13 @@ func produceData(s *session) {
 				continue
 			}
 			response.Body.Close()
-			s.responseChn <- dataToParse {
+			s.responseChn <- dataToParse{
 				url,
 				body,
 			}
 		}
 	}
-	Finish:
+Finish:
 	s.wg.Done()
 }
 
@@ -106,15 +107,15 @@ func consumeData(s *session) {
 	var bufferedUrls []string
 	for {
 		select {
-		case <- shouldStop:
+		case <-shouldStop:
 			goto Finish
-		case response := <- s.responseChn:
+		case response := <-s.responseChn:
 			ph := s.htmlParser.parse(string(response.rawData), response.url)
 			if len(bufferedUrls) < MAX_URL_BUFFER_LENGTH {
-				bufferedUrls = append(bufferedUrls, ph.urls...) 	// parsing strategy will filtered out unwanted urls
+				bufferedUrls = append(bufferedUrls, ph.urls...) // parsing strategy will filtered out unwanted urls
 			}
 			addToIndex(response.url, tokenize(ph.text))
-			fmt.Printf("%s. doc count: %d words: %d\n", response.url, dbConn.corpusCount(), dbConn.termsCount())
+			fmt.Printf("%s. doc count: %d words: %d\n", response.url, dbConn.corpusLength(), dbConn.termsCount())
 
 		default:
 			if len(bufferedUrls) > 0 {
@@ -127,7 +128,7 @@ func consumeData(s *session) {
 			}
 		}
 	}
-	Finish:
+Finish:
 	s.wg.Done()
 }
 

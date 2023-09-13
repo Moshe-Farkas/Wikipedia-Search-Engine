@@ -1,9 +1,5 @@
 package src
 
-import (
-	"log"
-)
-
 var (
 	dbConn *databaseConn
 )
@@ -30,7 +26,7 @@ func addToIndex(docName string, tkns *tokenizedDoc) {
 
 func checkErr(err error) {
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 }
 

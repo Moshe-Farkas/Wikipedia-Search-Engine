@@ -1,15 +1,16 @@
-package src 
+package src
 
 import (
 	"database/sql"
-	_ "github.com/lib/pq"
-	"os"
 	"fmt"
+	"os"
+
+	_ "github.com/lib/pq"
 )
 
 type bufferedDocEntry struct {
 	docName string
-	tokens *tokenizedDoc	
+	tokens  *tokenizedDoc
 }
 
 const maxBufferedDocEntries = 100
@@ -17,21 +18,17 @@ const maxBufferedDocEntries = 100
 type databaseConn struct {
 	db *sql.DB
 
-	seenTermsInDB map[string]struct {}
-	seenDocsInDB map[string]struct {}
+	seenTermsInDB map[string]struct{}
+	seenDocsInDB  map[string]struct{}
 
-	newSeenTerms map[string]struct {}	// buffering new seen terms. will be copied into seenTermsInDB
-	newSeenDocs map[string]struct {}    // buffering new seen docs. will be copied into seenDocsInDB
+	newSeenTerms map[string]struct{} // buffering new seen terms. will be copied into seenTermsInDB
+	newSeenDocs  map[string]struct{} // buffering new seen docs. will be copied into seenDocsInDB
 
 	bufferedDocsEntries []bufferedDocEntry
-
-	// behind the scenes will write it's buffered data to db
-	// need to load seen terms and seen docs for faster lookup time, only when in indexing mode
-	// need to seperate old terms already in db and new ones
 }
 
 func initDbConn() *databaseConn {
-	dbConn := databaseConn {}
+	dbConn := databaseConn{}
 	dbConn.newSeenDocs = map[string]struct{}{}
 	dbConn.seenDocsInDB = map[string]struct{}{}
 	dbConn.newSeenTerms = map[string]struct{}{}
@@ -50,15 +47,23 @@ func initDbConn() *databaseConn {
 		panic(err)
 	}
 	fmt.Println("The database is connected")
+	fmt.Println("docs in database:", dbConn.corpusLength())
 	return &dbConn
 }
 
 func (db *databaseConn) Close() {
-	db.Close()	
+	db.db.Close()
 }
 
-func (db *databaseConn) corpusCount() int {
-	return len(db.seenDocsInDB) + len(db.newSeenDocs)
+func (db *databaseConn) corpusLength() int {
+	if l := len(db.bufferedDocsEntries) + len(db.newSeenDocs); l > 0 {
+		// hack to speed up corupusLength query that works only when in indexing mode.
+		return l
+	} 
+	row := db.db.QueryRow("select count(*) from docs")
+	var l int
+	row.Scan(&l)
+	return l
 }
 
 func (db *databaseConn) termsCount() int {
@@ -66,27 +71,27 @@ func (db *databaseConn) termsCount() int {
 }
 
 func (db *databaseConn) loadTermsAndDocs() {
-	// only needed when indexing 
+	// only needed when indexing
 	rows, err := db.db.Query("select termname from terms")
 	checkErr(err)
 	db.seenTermsInDB = make(map[string]struct{})
 	for rows.Next() {
-			var termName string
-			rows.Scan(&termName)
-			db.seenTermsInDB[termName] = struct{}{}
+		var termName string
+		rows.Scan(&termName)
+		db.seenTermsInDB[termName] = struct{}{}
 	}
-	rows, err = db.db.Query("select docname from docs")
+	rows, _ = db.db.Query("select docname from docs")
 	db.seenDocsInDB = make(map[string]struct{})
 	for rows.Next() {
-			var doc string
-			rows.Scan(&doc)
-			db.seenDocsInDB[doc] = struct{}{}
+		var doc string
+		rows.Scan(&doc)
+		db.seenDocsInDB[doc] = struct{}{}
 	}
 }
 
 func (db *databaseConn) resetDB() {
-	query := 
-	`
+	query :=
+		`
 	delete from termentry;
 	delete from terms;
 	alter sequence terms_termindex_seq restart with 1;
@@ -103,7 +108,7 @@ func (db *databaseConn) seenDoc(docName string) bool {
 	}
 	_, seenThisSession := db.newSeenDocs[docName]
 	return seenThisSession
-} 
+}
 
 func (db *databaseConn) seenTerm(term string) bool {
 	_, seenInDB := db.seenTermsInDB[term]
@@ -115,7 +120,7 @@ func (db *databaseConn) seenTerm(term string) bool {
 }
 
 func (db *databaseConn) bufferNewDoc(docName string, tokens *tokenizedDoc) {
-	be := bufferedDocEntry {
+	be := bufferedDocEntry{
 		docName,
 		tokens,
 	}
@@ -168,7 +173,7 @@ func (db *databaseConn) writeBufferedDocs() {
 			panic(err)
 		}
 	}
-	for _, be := range db.bufferedDocsEntries { 
+	for _, be := range db.bufferedDocsEntries {
 		if db.seenDoc(be.docName) {
 			continue
 		}
@@ -195,4 +200,33 @@ func (db *databaseConn) writeBufferedDocs() {
 	err = tx.Commit()
 	checkErr(err)
 	db.bufferedDocsEntries = make([]bufferedDocEntry, 0)
+}
+
+func (db *databaseConn) termEntryRows() *sql.Rows {
+	query :=
+	`
+	select terms.termindex, terms.containingcount, termentry.* from termentry 
+	join terms 
+	on terms.termname = termentry.termname;
+	`
+	rows, err := db.db.Query(query)
+	checkErr(err)
+	return rows
+}
+
+func (db *databaseConn) termInfo(term string) (int, int, error) {
+	query :=
+	`
+	select terms.termindex, terms.containingcount from termentry
+	join terms on terms.termname = termentry.termname
+	where terms.termname=$1
+	limit 1
+	`
+	row := db.db.QueryRow(query, term)
+	var termIndex, containingcount int
+	err := row.Scan(&termIndex, &containingcount)
+	if err != nil {
+		return 0, 0, err
+	}
+	return termIndex, containingcount, nil
 }
