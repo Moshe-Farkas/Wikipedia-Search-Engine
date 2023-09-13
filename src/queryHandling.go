@@ -48,6 +48,9 @@ func queryHandle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	results := rank(query, RESULTS_AMOUNT)
+	if len(results) > RESULTS_AMOUNT {
+		results = results[:RESULTS_AMOUNT]
+	}
 	jsonData, err := json.Marshal(results)
 	checkErr(err)
 
