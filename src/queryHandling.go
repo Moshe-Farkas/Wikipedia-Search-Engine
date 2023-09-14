@@ -61,7 +61,7 @@ var (
 	tfidfVectors map[string]sparseVector // document name: sparse vector of its terms tf-idf scores
 )
 
-type sparseVector map[int]float64 // index: val - actual length is len(termsDatabase)
+type sparseVector map[int]float32 // index: val - actual length is len(termsDatabase)
 
 func initTfidfvectors() {
 	cp := dbConn.corpusLength()
@@ -72,7 +72,7 @@ func initTfidfvectors() {
 		var containingcount int
 		var termName string
 		var docName string
-		var tfScore float64
+		var tfScore float32
 		err := rows.Scan(&termIndex, &containingcount, &termName, &docName, &tfScore)
 		checkErr(err)
 		_, encountered := tfidfVectors[docName]
@@ -89,7 +89,7 @@ func rank(query string, n int) []string {
 	qv := vectorizeQuery(query)
 	type rankScore struct {
 		name  string
-		score float64
+		score float32
 	}
 
 	var ranks = make([]rankScore, n)
@@ -102,7 +102,7 @@ func rank(query string, n int) []string {
 	})
 	var topDocNames = []string{}
 	for _, d := range ranks {
-		if d.score == float64(0) {
+		if d.score == float32(0) {
 			break
 		}
 		topDocNames = append(topDocNames, d.name)
@@ -119,13 +119,13 @@ func vectorizeQuery(query string) sparseVector {
 		if err == nil {
 			// aka seen term
 			idfScore := idf(cp, containingCount)
-			qv[int(termIndex)] = idfScore * float64(tf) / float64(queryTkns.docLen)
+			qv[int(termIndex)] = idfScore * float32(tf) / float32(queryTkns.docLen)
 		}
 	}
 	return qv
 }
 
-func cosineSimilarity(a, b sparseVector) float64 {
+func cosineSimilarity(a, b sparseVector) float32 {
 	// cosine simitlarity: (A dot B) / (||A|| * ||B||)
 	aDotb := dotProduct(a, b)
 	aMag := vectorMagnitude(a)
@@ -136,26 +136,26 @@ func cosineSimilarity(a, b sparseVector) float64 {
 	return aDotb / (aMag * bMag)
 }
 
-func dotProduct(a, b sparseVector) float64 {
+func dotProduct(a, b sparseVector) float32 {
 	// iterate over A or B. does not matter which one
-	var product float64
+	var product float32
 	for index := range a {
 		product += a[index] * b[index]
 	}
 	return product
 }
 
-func vectorMagnitude(vec sparseVector) float64 {
-	var entriesSquared float64
+func vectorMagnitude(vec sparseVector) float32 {
+	var entriesSquared float32
 	for _, val := range vec {
 		entriesSquared += val * val
 	}
-	return math.Sqrt(entriesSquared)
+	return float32(math.Sqrt(float64(entriesSquared)))
 }
 
-func idf(corpusLen, containingTermLen int) float64 {
+func idf(corpusLen, containingTermLen int) float32 {
 	if containingTermLen == 0 {
 		return 0
 	}
-	return math.Log10(float64(corpusLen) / float64(containingTermLen)) 
+	return float32(math.Log10(float64(corpusLen) / float64(containingTermLen)))
 }
