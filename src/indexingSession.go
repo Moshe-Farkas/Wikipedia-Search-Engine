@@ -38,7 +38,7 @@ func startCrawlingAndIndexing(wg *sync.WaitGroup, initialLink string) {
 	internalWg.Wait()
 	close(responseChn)
 	close(urlsChn)
-	fmt.Println("finshed by crawling")
+	fmt.Println("finshed crawling")
 	wg.Done()
 }
 

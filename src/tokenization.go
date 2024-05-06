@@ -34,10 +34,12 @@ func tokenize(docText string) *tokenizedDoc {
 	re := regexp.MustCompile(`[-\s_]`)
 	for _, word := range re.Split(docText, -1) {
 		token, err := normalizeWord(word)
+
 		if err == nil {
 			tkns.addToken(token)
 		}
 	}
+	
 	return tkns
 }
 
@@ -45,19 +47,29 @@ func normalizeWord(input string) (string, error) {
 	if isStopWord(input) {
 		return "", errors.New("idk")
 	}
+
 	for _, char := range input {
 		if !unicode.IsPrint(char) {
 			return "", errors.New("idk")
 		}
 	}
+
 	var maxWordLength int = 15
+	var minWordLength int = 3;
+
 	input = expandContraction(input)
 	input = replaceCertainChars(input)
 	input = strings.ToLower(input)
 	if len(input) >= maxWordLength {
 		return "", errors.New("idk")
 	}
-	return stem(input), nil
+
+	result := stem(input)
+	if len(result) < minWordLength {
+		return "", errors.New("idk")
+	}
+
+	return result, nil
 }
 
 func isStopWord(str string) bool {
@@ -91,7 +103,8 @@ func expandContraction(input string) string {
 
 func replaceCertainChars(input string) string {
 	// return input
-	re := regexp.MustCompile("[^a-zA-Z]+")
+	re := regexp.MustCompile(`[^a-zA-Z]+`)
+	
 	return re.ReplaceAllString(input, "")
 }
 
