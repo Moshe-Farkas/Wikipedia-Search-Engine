@@ -174,7 +174,7 @@ func (db *databaseConn) writeBufferedDocs(bd bufferedDocs) {
 				_, err := updateContainingCount.Exec(token)
 				passOrFail(err)
 			}
-			tfScore := float32(tf) / float32(be.tokens.docLen)
+			tfScore := float32(tf)
 			_, err := addTermEntry.Exec(token, be.docName, tfScore)
 			passOrFail(err)
 		}
