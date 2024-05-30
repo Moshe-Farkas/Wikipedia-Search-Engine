@@ -92,7 +92,7 @@ func rank(query string, n int) []string {
 		score float32
 	}
 
-	var ranks = make([]rankScore, n)
+	var ranks = []rankScore{}
 
 	for doc, vec := range tfidfVectors {
 		ranks = append(ranks, rankScore{doc, cosineSimilarity(qv, vec)})
@@ -101,12 +101,15 @@ func rank(query string, n int) []string {
 		return ranks[i].score > ranks[j].score
 	})
 	var topDocNames = []string{}
+	var docCounter int = 0
 	for _, d := range ranks {
-		if d.score == float32(0) {
+		if d.score == float32(0) || docCounter >= n {
 			break
 		}
 		topDocNames = append(topDocNames, d.name)
+		docCounter++
 	}
+
 	return topDocNames
 }
 
