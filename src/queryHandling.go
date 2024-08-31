@@ -43,6 +43,7 @@ const RESULTS_AMOUNT = 30
 func queryHandle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+
 	query := r.URL.Query().Get("q")
 	if query == "" {
 		return
